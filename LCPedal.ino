@@ -1,6 +1,8 @@
 #include "Gamepad.h"
 #include "HX711-multi.h"
+#include "SimpleKalmanFilter.h"
 #include <math.h>
+
 Gamepad pedal;
 #define BAUD_RATE 9600
 
@@ -19,6 +21,16 @@ byte DOUTS[3] = {DOUT1, DOUT2, DOUT3};
 long int results[CHANNEL_COUNT];
 
 HX711MULTI scales(CHANNEL_COUNT, DOUTS, CLK);
+int16_t gas = 0 ;
+int16_t brake = 0;
+int16_t clutch = 0;
+
+SimpleKalmanFilter gasFilter(2, 2, 0.01);
+SimpleKalmanFilter brakeFilter(2, 2, 0.01);
+SimpleKalmanFilter clutchFilter(2, 2, 0.01);
+
+const long SERIAL_REFRESH_TIME = 100;
+long refresh_time;
 
 void setup() {
 
@@ -27,19 +39,31 @@ void setup() {
   tare();
 }
 
-void loop() {  
+void loop() {
   scales.read(results);
-  results[0] = constrain(results[0]*(-1), 0, 1000000);
+  results[0] = constrain(results[0] * (-1), 0, 1000000);
   results[1] = constrain(results[1], 0, 1000000);
-  results[2] = constrain(results[2]*(-1), 0, 1000000);
+  results[2] = constrain(results[2] * (-1), 0, 1000000);
+//    int16_t gas= convert(results[0],0,1000000,-32768,32767);
+// Serial.println(results[0]);
+  if (results[0] < 280000) {    
+    gas = convert(results[0], 0, 280000, -32768, 15000); 
+  } else if (results[0] >= 280000 && (results[0] < 700000)){
 
-  int16_t gas = convert(results[0],0,1000000,-32768,32767);
-  int16_t brake = convert(results[1],0,1000000,-32768,32767);
-  int16_t clutch = convert(results[2],0,1000000,-32768,32767);
+    gas = convert(results[0], 280000, 700000, 15000, 28000);
+
+  } else {
+    gas = convert(results[0], 700000, 1000000, 28000, 32767);
+  }    
+
+  brake= convert(results[1],0,1000000,-32768,32767);
+  clutch= convert(results[2],0,1000000,-32768,32767);
   
-  pedal.rxAxis(gas);
-  pedal.ryAxis(brake);
-  pedal.rzAxis(clutch);
+//  pedal.rxAxis(gas);
+  pedal.rxAxis(gasFilter.updateEstimate(gas));
+  pedal.ryAxis(gasFilter.updateEstimate(brake));
+  pedal.rzAxis(clutchFilter.updateEstimate(clutch));
+//  pedal.rzAxis(clutch);
   pedal.write();
   delay(10);
 
@@ -62,7 +86,7 @@ void tare() {
 }
 
 int16_t convert(long input, long minInput, long maxInput, long minOutput, long maxOutput) {
-  float ratio = (float)input/(maxInput-minInput); 
-  float result =  minOutput + (maxOutput-minOutput)* ratio;
+  float ratio = ((float)input - (float)minInput)/ ((float)maxInput - (float)minInput);
+  float result =  minOutput + (maxOutput - minOutput) * ratio;
   return (int16_t) result;
 }
