@@ -32,13 +32,13 @@ THE SOFTWARE.
 
 typedef struct
 { //WheelReport
-  uint32_t buttons = 0x00;
-  int16_t xAxis;
-  int16_t yAxis;
-  int16_t zAxis;
-  int16_t rxAxis;
-  int16_t ryAxis;
-  int16_t rzAxis;
+  uint8_t buttons = 0x00;
+  int32_t xAxis;
+  int32_t yAxis;
+  int32_t zAxis;
+  int32_t rxAxis;
+  int32_t ryAxis;
+  int32_t rzAxis;
 } GamepadReport;
 
 class Gamepad
@@ -56,13 +56,14 @@ class Gamepad
     void press(uint8_t b);
     void release(uint8_t b);
     void releaseAll(void);
-    void buttons(uint32_t b);
-    void xAxis(int16_t a);
-    void yAxis(int16_t a);
-    void zAxis(int16_t a);
-    void rxAxis(int16_t a); 
-    void ryAxis(int16_t a); 
-    void rzAxis(int16_t a); 
+    void buttons(uint8_t b);
+
+    void xAxis(int32_t a);
+    void yAxis(int32_t a);
+    void zAxis(int32_t a);
+    void rxAxis(int32_t a); 
+    void ryAxis(int32_t a); 
+    void rzAxis(int32_t a); 
 };
 
 #endif

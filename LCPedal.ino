@@ -1,9 +1,8 @@
 #include "Gamepad.h"
 #include "HX711-multi.h"
 #include "SimpleKalmanFilter.h"
-#include <math.h>
 
-Gamepad pedal;
+Gamepad gamepad;
 #define BAUD_RATE 9600
 
 // Pins to the load cell amp
@@ -21,9 +20,9 @@ byte DOUTS[3] = {DOUT1, DOUT2, DOUT3};
 long int results[CHANNEL_COUNT];
 
 HX711MULTI scales(CHANNEL_COUNT, DOUTS, CLK);
-int16_t gas = 0 ;
-int16_t brake = 0;
-int16_t clutch = 0;
+int32_t gas = 0 ;
+int32_t brake = 0;
+int32_t clutch = 0;
 
 SimpleKalmanFilter gasFilter(2, 2, 0.01);
 SimpleKalmanFilter brakeFilter(2, 2, 0.01);
@@ -32,39 +31,36 @@ SimpleKalmanFilter clutchFilter(2, 2, 0.01);
 const long SERIAL_REFRESH_TIME = 100;
 long refresh_time;
 
-void setup() {
+//XY shifter use potentiometer
+uint16_t x = A0;
+uint16_t y = A1;
+uint8_t shifterValue = 0;
 
+
+void setup() {
   Serial.begin(BAUD_RATE);
-  pedal.begin();
+  gamepad.begin();
   tare();
 }
 
 void loop() {
-  scales.read(results);
-  results[0] = constrain(results[0] * (-1), 0, 1000000);
-  results[1] = constrain(results[1], 0, 1000000);
-  results[2] = constrain(results[2] * (-1), 0, 1000000);
-//    int16_t gas= convert(results[0],0,1000000,-32768,32767);
-// Serial.println(results[0]);
-  if (results[0] < 280000) {    
-    gas = convert(results[0], 0, 280000, -32768, 15000); 
-  } else if (results[0] >= 280000 && (results[0] < 700000)){
-
-    gas = convert(results[0], 280000, 700000, 15000, 28000);
-
-  } else {
-    gas = convert(results[0], 700000, 1000000, 28000, 32767);
-  }    
-
-  brake= convert(results[1],0,1000000,-32768,32767);
-  clutch= convert(results[2],0,1000000,-32768,32767);
+//  release all previos value of gamepad
+  gamepad.releaseAll();
+  shifterValue = calculatedShifter(mappedX(analogRead(x)), mappedY(analogRead(y)), shifterValue); 
+  gamepad.press(shifterValue+1);
   
-//  pedal.rxAxis(gas);
-  pedal.rxAxis(gasFilter.updateEstimate(gas));
-  pedal.ryAxis(gasFilter.updateEstimate(brake));
-  pedal.rzAxis(clutchFilter.updateEstimate(clutch));
-//  pedal.rzAxis(clutch);
-  pedal.write();
+  scales.read(results);
+  results[0] = constrain(results[0] * (-1), 0, 300000); // *(-1) and 300000 are based on the loadcell value.
+  results[1] = constrain(results[1], 0, 1048576);
+  results[2] = constrain(results[2] * (-1), 0, 500000);
+  gas = convert(results[0], 0, 300000, 0, 1048576);
+  brake = results[1];
+  clutch = convert(results[2], 0, 500000, 0, 1048576);
+  gamepad.rxAxis(gasFilter.updateEstimate(gas));
+  gamepad.ryAxis(gasFilter.updateEstimate(brake));
+  gamepad.rzAxis(clutchFilter.updateEstimate(clutch));
+ 
+  gamepad.write();
   delay(10);
 
   //on serial data (any data) re-tare
@@ -85,8 +81,61 @@ void tare() {
   }
 }
 
-int16_t convert(long input, long minInput, long maxInput, long minOutput, long maxOutput) {
-  float ratio = ((float)input - (float)minInput)/ ((float)maxInput - (float)minInput);
+long convert(long input, long minInput, long maxInput, long minOutput, long maxOutput) {
+  float ratio = ((float)input - (float)minInput) / ((float)maxInput - (float)minInput);
   float result =  minOutput + (maxOutput - minOutput) * ratio;
-  return (int16_t) result;
+  return (long) result;
+}
+
+uint8_t mappedX(uint16_t x) {
+  if ( x > 540) {
+    return 0;
+  } else if (x < 530 && x > 510) {
+    return 1;
+  }
+  else if (x < 490 && x > 470) {
+    return 2;
+  } else if (x < 460) {
+    return 3;
+  }
+  else {
+    return 4;
+  }
+}
+
+uint8_t mappedY(uint16_t y) {
+  if ( y < 470) {
+    return 0;
+  } else if (y > 550) {
+    return 2;
+  }
+  else {
+    return 1;
+  }
+}
+uint8_t calculatedShifter(uint8_t x, uint8_t y, uint8_t shifter) {
+  if (x == 0 && y == 0) {
+    return 1;
+  } else if (x == 0 && y == 2) {
+    return 2;
+  } else if (x == 1 && y == 0) {
+    return 3;
+  }
+  else if (x == 1 && y == 2) {
+    return 4;
+  }
+  else if (x == 2 && y == 0) {
+    return 5;
+  }
+  else if (x == 2 && y == 2) {
+    return 6;
+  }
+  else if (x == 3 && y == 2) {
+    return 7;
+  } else if (x == 1 && y == 1) {
+    return 0;
+  }
+  else {
+    return shifter;
+  }
 }
