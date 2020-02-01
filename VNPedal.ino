@@ -1,6 +1,5 @@
 #include "Gamepad.h"
 #include "HX711-multi.h"
-#include "SimpleKalmanFilter.h"
 
 Gamepad gamepad;
 #define BAUD_RATE 9600
@@ -24,10 +23,6 @@ int32_t gas = 0 ;
 int32_t brake = 0;
 int32_t clutch = 0;
 
-SimpleKalmanFilter gasFilter(2, 2, 0.01);
-SimpleKalmanFilter brakeFilter(2, 2, 0.01);
-SimpleKalmanFilter clutchFilter(2, 2, 0.01);
-
 const long SERIAL_REFRESH_TIME = 100;
 long refresh_time;
 
@@ -47,8 +42,7 @@ void loop() {
 //  release all previos value of gamepad
   gamepad.releaseAll();
   shifterValue = calculatedShifter(mappedX(analogRead(x)), mappedY(analogRead(y)), shifterValue); 
-  gamepad.press(shifterValue+1);
-  
+  gamepad.press(shifterValue+1);  
   scales.read(results);
   results[0] = constrain(results[0] * (-1), 0, 300000); // *(-1) and 300000 are based on the loadcell value.
   results[1] = constrain(results[1], 0, 1048576);
@@ -56,9 +50,9 @@ void loop() {
   gas = convert(results[0], 0, 300000, 0, 1048576);
   brake = results[1];
   clutch = convert(results[2], 0, 500000, 0, 1048576);
-  gamepad.rxAxis(gasFilter.updateEstimate(gas));
-  gamepad.ryAxis(gasFilter.updateEstimate(brake));
-  gamepad.rzAxis(clutchFilter.updateEstimate(clutch));
+  gamepad.rxAxis((gas));
+  gamepad.ryAxis((brake));
+  gamepad.rzAxis((clutch));
  
   gamepad.write();
   delay(10);
